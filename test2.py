@@ -2,6 +2,7 @@ import requests
 from requests.auth import HTTPDigestAuth
 import xml.etree.ElementTree as ET
 import html
+import time
 from typing import Optional, Dict
 
 # -----------------------------
@@ -216,33 +217,54 @@ class FritzTR064:
         result["_raw_xml"] = xml
         return result
 
-
 if __name__ == "__main__":
     get_fritz_credentials()
-    print("Fritzbox1 User:", fritz_user)
+#    print("Fritzbox1 User:", fritz_user)
     get_fritz_credentials2()
-    print("Fritzbox2 User:", fritz_user2)
+#    print("Fritzbox2 User:", fritz_user2)
 
     f = FritzTR064(fritzbox_ip, fritz_user, fritz_pass, port=tr064_port, proto=tr064_proto)
+#    print("=== 2.4 GHz (WLANConfiguration:1) ===")
+#    total24 = f.get_total_associations(1)
+#    print("Total 2.4 GHz clients:", total24)
+#    for i in range(total24):
+#        info = f.get_generic_associated_device_info(i, wlan_instance=1)
+#        print(f"Index {i}:", info["NewAssociatedDeviceMACAddress"],
+#              info["NewAssociatedDeviceIPAddress"],
+#              info["NewAssociatedDeviceAuthState"],
+#              "2.4 GHz",
+#              info["NewX_AVM-DE_SignalStrength"],
+#              info["NewX_AVM-DE_Speed"])
 
-    print("=== 2.4 GHz (WLANConfiguration:1) ===")
-    total24 = f.get_total_associations(1)
-    print("Total 2.4 GHz clients:", total24)
-    for i in range(total24):
-        info = f.get_generic_associated_device_info(i, wlan_instance=1)
-        print(f"Index {i}:", info["NewAssociatedDeviceMACAddress"],
+#    print("\n=== 5 GHz (WLANConfiguration:2) ===")
+#    total5 = f.get_total_associations(2)
+#    print("Total 5 GHz clients:", total5)
+#    for i in range(total5):
+#        info = f.get_generic_associated_device_info(i, wlan_instance=2)
+#        print(f"Index {i}:", info["NewAssociatedDeviceMACAddress"],
+#              info["NewAssociatedDeviceIPAddress"],
+#              info["NewAssociatedDeviceAuthState"],
+#              "5.0 GHz",
+#              info["NewX_AVM-DE_SignalStrength"],
+#              info["NewX_AVM-DE_Speed"])
+
+    while True:
+        total24 = f.get_total_associations(1)
+        for i in range(total24):
+            info = f.get_generic_associated_device_info(i, wlan_instance=1)
+            print(f"Index {i}:", info["NewAssociatedDeviceMACAddress"],
               info["NewAssociatedDeviceIPAddress"],
               info["NewAssociatedDeviceAuthState"],
+              "2.4 GHz",
               info["NewX_AVM-DE_SignalStrength"],
               info["NewX_AVM-DE_Speed"])
-
-    print("\n=== 5 GHz (WLANConfiguration:2) ===")
-    total5 = f.get_total_associations(2)
-    print("Total 5 GHz clients:", total5)
-    for i in range(total5):
-        info = f.get_generic_associated_device_info(i, wlan_instance=2)
-        print(f"Index {i}:", info["NewAssociatedDeviceMACAddress"],
+        total5 = f.get_total_associations(2)
+        for i in range(total5):
+            info = f.get_generic_associated_device_info(i, wlan_instance=2)
+            print(f"Index {i}:", info["NewAssociatedDeviceMACAddress"],
               info["NewAssociatedDeviceIPAddress"],
               info["NewAssociatedDeviceAuthState"],
+              "5.0 GHz",
               info["NewX_AVM-DE_SignalStrength"],
               info["NewX_AVM-DE_Speed"])
+        time.sleep(5)

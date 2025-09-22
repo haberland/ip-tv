@@ -146,6 +146,33 @@ class FritzTR064:
         return {k: _find_tag_text(xml, k) for k in keys} | {"_raw_xml": xml}
 
 
+
+def get_download_speed(fritz: FritzTR064, wan_instance: int = 1, interval: float = 1.0) -> float:
+    """
+    Liefert die aktuelle Downloadgeschwindigkeit in Bytes/s.
+    Interval = Wartezeit zwischen zwei Abfragen, um die Rate zu berechnen.
+    """
+    service = f"urn:dslforum-org:service:WANCommonInterfaceConfig:{wan_instance}"
+    location = f"/upnp/control/wancommonifconfig{wan_instance}"
+    action = "GetTotalBytesReceived"
+
+    body = f"""<?xml version="1.0" encoding="utf-8"?>
+    <s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/"
+        s:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/">
+        <s:Body>
+            <u:{action} xmlns:u="{service}"/>
+        </s:Body>
+    </s:Envelope>"""
+
+    xml1 = fritz._soap_request(service, location, action, body)
+    bytes1 = int(_find_tag_text(xml1, "NewTotalBytesReceived") or 0)
+    time.sleep(interval)
+    xml2 = fritz._soap_request(service, location, action, body)
+    bytes2 = int(_find_tag_text(xml2, "NewTotalBytesReceived") or 0)
+
+    return (bytes2 - bytes1) / interval  # Bytes pro Sekunde
+
+
 # -----------------------------
 # Hauptprogramm
 # -----------------------------
@@ -158,14 +185,17 @@ if __name__ == "__main__":
     box1.fetch_username()
     box2.fetch_username()
 
-    while True:
-        for box, band, wlan_id in [(box1, "2.4 GHz", 1), (box1, "5 GHz", 2)]:
-            devices = box.get_associated_devices(wlan_id)
-            for i, d in enumerate(devices):
-                print(f"{box.ip} [{band}] Index {i}:",
-                      d["NewAssociatedDeviceMACAddress"],
-                      d["NewAssociatedDeviceIPAddress"],
-                      d["NewAssociatedDeviceAuthState"],
-                      d["NewX_AVM-DE_SignalStrength"],
-                      d["NewX_AVM-DE_Speed"])
-        time.sleep(5)
+    download_speed = get_download_speed(box2, interval=1.0)
+    print(f"Aktuelle Downloadgeschwindigkeit: {download_speed / 1024:.2f} kB/s")
+
+    #while True:
+    #    for box, band, wlan_id in [(box1, "2.4 GHz", 1), (box1, "5 GHz", 2)]:
+    #        devices = box.get_associated_devices(wlan_id)
+    #        for i, d in enumerate(devices):
+    #            print(f"{box.ip} [{band}] Index {i}:",
+    #                  d["NewAssociatedDeviceMACAddress"],
+    #                  d["NewAssociatedDeviceIPAddress"],
+    #                  d["NewAssociatedDeviceAuthState"],
+    #                  d["NewX_AVM-DE_SignalStrength"],
+    #                  d["NewX_AVM-DE_Speed"])
+    #    time.sleep(5)

@@ -1,1 +1,1 @@
-# ip-tv
+# Hier sind einige Skripte, mit denen mittels USB-HDMI Grepper STBs analysiert werden können.

@@ -656,11 +656,10 @@ sniffing(){
                 echo "Timestamp,DeviceIndex,MACAddress,IPAddress,DeviceAuthState,AVM-DE_Speed,AVM-DE_SignalStrength,AVM-DE_ChannelWidth,GHz,C1,C2,C3,C4,ds,size"
                 echo "Timestamp,DeviceIndex,MACAddress,IPAddress,DeviceAuthState,AVM-DE_Speed,AVM-DE_SignalStrength,AVM-DE_ChannelWidth,GHz,C1,C2,C3,C4,ds,size" >> "$filename"
         fi
-
         while true; do
-		get24ghz
-                get5ghz
-                sleep $sleeping  # optional
+		        get24ghz
+            get5ghz
+            sleep $sleeping  # optional
         done
 }
 

@@ -1,5 +1,6 @@
 import requests
 import xml.etree.ElementTree as ET
+from datetime import datetime
 import html
 
 # -----------------------------
@@ -127,6 +128,5 @@ def soap_request2(service, location, action, body):
 if __name__ == "__main__":
     get_fritz_credentials()
     print("Fritzbox1 User:", fritz_user)
-
     get_fritz_credentials2()
     print("Fritzbox2 User:", fritz_user2)

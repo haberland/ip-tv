@@ -11,7 +11,7 @@ snapshot_interval = 1     # Sekunden zwischen Snapshots
 threshold = 250000        # Schwellenwert für Differenz
 
 # Log-Bild skalieren um größes zu verkeinern
-scale = 0.25  # 50 % der Originalgröße
+scale = 0.5  # 50 % der Originalgröße
 
 snapshots = []
 greyshots = []

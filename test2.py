@@ -3,7 +3,11 @@ from requests.auth import HTTPDigestAuth
 import xml.etree.ElementTree as ET
 import html
 import time
+import csv
+from datetime import datetime
 from typing import Optional, Dict, List
+
+output_csv = "Testmessung.csv"
 
 # -----------------------------
 # Hilfsfunktionen
@@ -185,17 +189,36 @@ if __name__ == "__main__":
     box1.fetch_username()
     box2.fetch_username()
 
-    download_speed = get_download_speed(box2, interval=1.0)
-    print(f"Aktuelle Downloadgeschwindigkeit: {download_speed / 1024:.2f} kB/s")
+    #download_speed = get_download_speed(box2, interval=1.0)
+    #print(f"Aktuelle Downloadgeschwindigkeit: {download_speed / 1024:.2f} kB/s")
 
-    #while True:
-    #    for box, band, wlan_id in [(box1, "2.4 GHz", 1), (box1, "5 GHz", 2)]:
-    #        devices = box.get_associated_devices(wlan_id)
-    #        for i, d in enumerate(devices):
-    #            print(f"{box.ip} [{band}] Index {i}:",
-    #                  d["NewAssociatedDeviceMACAddress"],
-    #                  d["NewAssociatedDeviceIPAddress"],
-    #                  d["NewAssociatedDeviceAuthState"],
-    #                  d["NewX_AVM-DE_SignalStrength"],
-    #                  d["NewX_AVM-DE_Speed"])
-    #    time.sleep(5)
+    # CSV vorbereiten
+    with open(output_csv, "w", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow(["Timestamp", "NewAssociatedDeviceMACAddress", "NewAssociatedDeviceIPAddress", "Band", "NewAssociatedDeviceAuthState", "AVM-DE_SignalStrength", "AVM-DE_Speed", "DownloadSpeed_kBps"])
+
+    waiting = 1.0  # Sekunden für die Geschwindigkeits Messungen
+    while True:
+        for box, band, wlan_id in [(box1, "2.4", 1), (box1, "5", 2)]:
+            devices = box.get_associated_devices(wlan_id)
+            download_speed = get_download_speed(box2, interval=waiting)
+            for i, d in enumerate(devices):
+                #print(d["NewAssociatedDeviceMACAddress"],
+                #      d["NewAssociatedDeviceIPAddress"],
+                #      band,i,
+                #      d["NewAssociatedDeviceAuthState"],
+                #      d["NewX_AVM-DE_SignalStrength"],
+                #      d["NewX_AVM-DE_Speed"],
+                #      f"{download_speed / 1024:.2f} kB/s")
+                # in CSV schreiben
+                with open(output_csv, "a", newline="") as f:
+                    writer = csv.writer(f)
+                    writer.writerow([datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                        d["NewAssociatedDeviceMACAddress"],
+                        d["NewAssociatedDeviceIPAddress"],
+                        band,
+                        d["NewAssociatedDeviceAuthState"],
+                        d["NewX_AVM-DE_SignalStrength"],
+                        d["NewX_AVM-DE_Speed"],
+                        f"{download_speed / 1024:.2f} kB/s"])
+            print("Daten in CSV geschrieben.")

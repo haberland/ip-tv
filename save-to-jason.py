@@ -15,7 +15,7 @@ def get_or_create_data(filename=config_file):
         for key, value in data.items():
             print(f"{key}: {value}")
 
-        choice = input("\nSind ddiese Daten korrekt? (j/n): ").strip().lower()
+        choice = input("\nSind diese Daten korrekt? (j/n): ").strip().lower()
         if choice == "j":
             return data
         else:

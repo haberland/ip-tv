@@ -3,19 +3,26 @@
   "fritzbox1": "192.168.175.1",
   "fritzbox1pass": "jacht6676",
   "fritzbox2": "192.168.175.21",
-  "fritzbox2pass": "heini7465",
+  "fritzbox2pass": "jogger0413",
+
   "attenuator_ip": "192.168.1.101",
-  "fakercu_ip": "192.168.175.19",
-  "fakercu_port": 8181,
+  "attenuator": false,
   "start_db": 45.0,
   "stop_db": 70.0,
   "step_db": 0.25,
   "settle_time": 30,
+  
+  "fakercu_ip": "192.168.175.19",
+  "fakercu_port": 8181,
+  "fakercu": false,
+  
+  "videodevice": "/dev/video0",
   "snapshot_interval": 1.0,
   "threshold": 250000,
   "scale": 0.5,
-  "videodevice": "/dev/video0",
+  
   "loops": 10,
+  "csvwrite": false,
   "debug": false,
   "debug2": false,
   "lastupdate": 0

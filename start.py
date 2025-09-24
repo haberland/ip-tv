@@ -73,14 +73,28 @@ def ask_and_save(file_path: Path):
         fritzbox1pass = input("Bitte gib das Passwort der Gateway Fritz!Box ein: ")
         fritzbox2 = input("Bitte gib die IP der Wlan-Accesspoint Fritz!Box ein: ")
         fritzbox2pass = input("Bitte gib das Passwort der Wlan-Accesspoint Fritz!Box ein: ")
-    attenuator_ip = input("Bitte gib die IP des Dämpfungsgliedes ein: ")
-    inputt = input("Bitte gib die IP der FakeRCU ein: ")
-    fakercu_ip, port = inputt.split(":")
-    if not port.strip():  # leer?
-        fakercu_port = int(80)
+
+    choice2 = input("\nSoll WiFi gedämpft werden? (j/n): ").strip().lower()
+    if choice2 == "j":
+        attenuator = True
+        attenuator_ip = input("Bitte gib die IP des Dämpfungsgliedes ein: ")
     else:
-        fakercu_port = int(port)
-        
+        attenuator = False
+        attenuator_ip = ""
+    choice3 = input("\nSoll eine FakeRCU verwendet werden? (j/n): ").strip().lower()
+    if choice3 == "j":
+        fakercu = True
+        inputt = input("Bitte gib die IP der FakeRCU ein: ")
+        fakercu_ip, port = inputt.split(":")
+        if not port.strip():  # leer?
+            fakercu_port = int(80)
+        else:
+            fakercu_port = int(port)
+    else:
+        fakercu = False
+        fakercu_ip = ""
+        fakercu_port = 0
+
     start_db = float(input("Bitte gib Startdämpfung ein (0-90dB): ").replace(",", "."))
     stop_db = float(input("Bitte gib Enddämpfung ein (0-90dB): ").replace(",", "."))
     step_db = float(input("Bitte gib Dämpfungsschrittgröße ein (0,25-95,0dB): ").replace(",", "."))
@@ -106,8 +120,10 @@ def ask_and_save(file_path: Path):
         "fritzbox2": fritzbox2,
         "fritzbox2pass": fritzbox2pass,
         "attenuator_ip": attenuator_ip,
+        "attenuator": attenuator,
         "fakercu_ip": fakercu_ip,
         "fakercu_port": fakercu_port,
+        "fakercu": fakercu,
 
         "start_db": start_db,
         "stop_db": stop_db,
@@ -311,8 +327,7 @@ if software != daten.get("version"):
 
 locals().update(daten)
 
-duration = int(abs(stop_db - start_db) / step_db * (settle_time + 3 * snapshot_interval) / 60) * int(loops) / 60
-print(f"Alle Testläufe dauern ca. {duration} Stunden.")
+
 
 
 
@@ -326,20 +341,21 @@ greyshots = []
 timestamps = []
 
 
-
-print("[Setup] Wecke Stream...")
-# --- Dämpfung einstellen ---
-cmd = ["curl", f"http://{attenuator_ip}/execute.php?SAA+{start_db}"]
-subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-print(f"[Setup] Dämpfung gesetzt: {start_db} dB")
-time.sleep(5)
-send_key("25")
-print(f"[Setup] 4 Sekunden warten...")
-time.sleep(5)
-send_key("27")
+if attenuator:
+    print("[Setup] Wecke Stream...")
+    # --- Dämpfung einstellen ---
+    cmd = ["curl", f"http://{attenuator_ip}/execute.php?SAA+{start_db}"]
+    subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    print(f"[Setup] Dämpfung gesetzt: {start_db} dB")
+    time.sleep(5)
+if fakercu:
+    send_key("25")
+    print(f"[Setup] Umschalten und 5 Sekunden warten...")
+    time.sleep(5)
+    send_key("27")
 
 # Grabber öffnen
-cap = cv2.VideoCapture("/dev/video0", cv2.CAP_V4L2)
+cap = cv2.VideoCapture(videodevice, cv2.CAP_V4L2)
 cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1920)
 cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 1080)
 cap.set(cv2.CAP_PROP_FPS, 30)
@@ -374,18 +390,20 @@ box1.fetch_username()
 box2.fetch_username()
 
 # CSV vorbereiten
-with open(output_csv, "w", newline="") as f:
-    writer = csv.writer(f)
-    writer.writerow(["Timestamp", "NewAssociatedDeviceMACAddress", "NewAssociatedDeviceIPAddress", "Band", "NewAssociatedDeviceAuthState", "AVM-DE_SignalStrength", "AVM-DE_Speed", "DownloadSpeed_kBps"])
+if csvwrite:
+    with open(output_csv, "w", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow(["Timestamp", "NewAssociatedDeviceMACAddress", "NewAssociatedDeviceIPAddress", "Band", "NewAssociatedDeviceAuthState", "AVM-DE_SignalStrength", "AVM-DE_Speed", "DownloadSpeed_kBps"])
 
 for loop in range(int(loops)):
     print(f"Loop: {loop}")
     damping = start_db
     while damping <= stop_db:
         # --- Dämpfung einstellen ---
-        cmd = ["curl", f"http://{attenuator_ip}/execute.php?SAA+{damping:.2f}"]
-        subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        print(f"[Testing] Dämpfung gesetzt: {damping:.2f} dB")
+        if attenuator:
+            cmd = ["curl", f"http://{attenuator_ip}/execute.php?SAA+{damping:.2f}"]
+            subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            print(f"[Testing] Dämpfung gesetzt: {damping:.2f} dB")
 
         # --- Wartezeit nach Dämpfungsänderung ---
         time.sleep(settle_time)
@@ -406,19 +424,19 @@ for loop in range(int(loops)):
                         d["NewX_AVM-DE_Speed"],
                         f"{download_speed / 1024:.2f} kB/s")
                 # in CSV schreiben
-                with open(output_csv, "a", newline="") as f:
-                    writer = csv.writer(f)
-                    writer.writerow([datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                        d["NewAssociatedDeviceMACAddress"],
-                        d["NewAssociatedDeviceIPAddress"],
-                        band,
-                        d["NewAssociatedDeviceAuthState"],
-                        d["NewX_AVM-DE_SignalStrength"],
-                        d["NewX_AVM-DE_Speed"],
-                        f"{download_speed / 1024:.2f} kB/s"])
-            if debug2:        
-                print("Daten in CSV geschrieben.")
-        
+                if csvwrite:
+                    with open(output_csv, "a", newline="") as f:
+                        writer = csv.writer(f)
+                        writer.writerow([datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                            d["NewAssociatedDeviceMACAddress"],
+                            d["NewAssociatedDeviceIPAddress"],
+                            band,
+                            d["NewAssociatedDeviceAuthState"],
+                            d["NewX_AVM-DE_SignalStrength"],
+                            d["NewX_AVM-DE_Speed"],
+                            f"{download_speed / 1024:.2f} kB/s"])
+                if debug2:        
+                    print("Daten in CSV geschrieben.")
         # 3 Snapshots sammeln
     for i in range(3):
         time.sleep(snapshot_interval)
@@ -472,10 +490,12 @@ for loop in range(int(loops)):
         break
 
     # --- nächste Dämpfung ---
-    send_key("26")
-    time.sleep(3)
-    send_key("24")
-    damping += step_db
+    if facercu:
+        send_key("26")
+        time.sleep(3)
+        send_key("24")
+    if attenuator:
+        damping += step_db
 
 cap.release()
 print(f"+-------------------------------+")

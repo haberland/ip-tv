@@ -10,6 +10,8 @@ import xml.etree.ElementTree as ET
 import html
 import csv
 from typing import Optional, Dict, List
+import wave
+
 
 # --- Einstellungen ---
 attenuator_ip = "192.168.1.101"
@@ -24,8 +26,10 @@ stop_db = 60.0
 step_db = 0.25
 
 settle_time = 15          # Sekunden warten nach neuer Dämpfung
-snapshot_interval = 2     # Sekunden zwischen Snapshots und gleichzeitig download Geschwindigkeit berechnung
+snapshot_interval = 1     # Sekunden zwischen Snapshots und gleichzeitig download Geschwindigkeit und Tonauswertung berechnung
 threshold = 250000        # Schwellenwert für Diff
+
+audiocapture = True
 
 # Log-Bild skalieren um größes zu verkeinern
 scale = 0.5  # 50 % der Originalgröße
@@ -35,8 +39,6 @@ testergebnis = "Testergebnisse.csv"
 writecsv= True
 
 debug= True
-
-#### Hilfsmethoden
 
 # -----------------------------
 # Hilfsfunktionen
@@ -199,7 +201,13 @@ def get_download_speed(fritz: FritzTR064, wan_instance: int = 1, interval: float
 
     xml1 = fritz._soap_request(service, location, action, body)
     bytes1 = int(_find_tag_text(xml1, "NewTotalBytesReceived") or 0)
-    time.sleep(interval)
+    
+    if audiocapture:
+        # Audio aufnehmen während des Intervalls
+        capture_audio(duration=interval)
+    else:
+        time.sleep(interval)
+
     xml2 = fritz._soap_request(service, location, action, body)
     bytes2 = int(_find_tag_text(xml2, "NewTotalBytesReceived") or 0)
 
@@ -223,7 +231,34 @@ def send_key(keycode: str, host: str = "0.0.0.0", port: int = 8181):
         currenttime= datetime.now().strftime("%d.%m.%Y %H:%M:%S")
         print(f"{currenttime} [FakeRCU] Fehler beim Senden von Key {keycode}: {e}")
 
+def capture_audio(filename="audio.wav", duration=snapshot_interval):
+    """
+    Nimmt für 'duration' Sekunden Audio aus dem Stream auf und speichert als WAV.
+    """
+    cmd = [
+        "ffmpeg",
+        "-y",
+        "-i", stream_url,
+        "-t", str(duration),
+        "-vn",
+        "-acodec", "pcm_s16le",
+        "-ar", "16000",
+        "-ac", "1",
+        filename
+    ]
+    subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
+def check_audio(filename="audio.wav", threshold=50):
+    """
+    Prüft, ob Ton vorhanden ist anhand des RMS-Pegels.
+    """
+    with wave.open(filename, "rb") as wf:
+        frames = wf.readframes(wf.getnframes())
+        samples = np.frombuffer(frames, dtype=np.int16)
+
+    # RMS berechnen
+    rms = np.sqrt(np.mean(samples.astype(np.float64)**2))
+    return rms, rms > threshold
 
 ####
 
@@ -244,7 +279,7 @@ if writecsv:
     output_csv = f"{timestamp2}-Messverlauf.csv"
     with open(output_csv, "w", newline="") as f:
         writer = csv.writer(f)
-        writer.writerow(["Timestamp", "NewAssociatedDeviceMACAddress", "NewAssociatedDeviceIPAddress", "Band", "NewAssociatedDeviceAuthState", "AVM-DE_SignalStrength", "AVM-DE_WLAN-Speed", "DownloadSpeed_kBps"])
+        writer.writerow(["Timestamp", "NewAssociatedDeviceMACAddress", "NewAssociatedDeviceIPAddress", "Band", "NewAssociatedDeviceAuthState", "AVM-DE_SignalStrength", "AVM-DE_WLAN-Speed", "DownloadSpeed_kBps", "RMS"])
     #with open(testergebnis, "w", newline="") as f:
     #    writer = csv.writer(f)
     #    writer.writerow(["Timestamp", "Start dB", "Stop dB", "Step dB", "settle time", "snapshot interval", "threshold", "damping","Diff"])
@@ -252,6 +287,7 @@ if writecsv:
 snapshots = []
 greyshots = []
 timestamps = []
+audiostreams = []
 
 if debug:
     currenttime= datetime.now().strftime("%d.%m.%Y %H:%M:%S")
@@ -307,6 +343,11 @@ for i in range(3):
 
 damping = start_db
 while damping <= stop_db:
+    snapshots.clear()
+    greyshots.clear()
+    timestamps.clear()
+    audiostreams.clear()
+
     if attenuator:
         # --- Dämpfung einstellen ---
         cmd = ["curl", f"http://{attenuator_ip}/execute.php?SAA+{damping:.2f}"]
@@ -316,10 +357,6 @@ while damping <= stop_db:
             print(f"{currenttime} [Testing] Dämpfung gesetzt: {damping:.2f} dB")
         # --- Wartezeit nach Dämpfungsänderung ---
         time.sleep(settle_time)
-
-    snapshots.clear()
-    greyshots.clear()
-    timestamps.clear()
 
     # 3 Snapshots sammeln
     for i in range(3):
@@ -345,6 +382,16 @@ while damping <= stop_db:
             currenttime= datetime.now().strftime("%d.%m.%Y %H:%M:%S")
             print(f"{currenttime} {timestamp} [Testing] Snapshot {i+1} aufgenommen")
 
+        if audiocapture:
+            rms, has_sound = check_audio()
+            audiostreams.append(rms)
+        if debug:
+            currenttime= datetime.now().strftime("%d.%m.%Y %H:%M:%S")
+            if has_sound:
+                print(f"{currenttime} [Audio] Aktuelle Lautstärke (RMS): {rms:.2f}")
+            else:
+                print(f"{currenttime} [Audio] ❌ Kein Ton erkannt (RMS: {rms:.2f})")
+
         for box, band, wlan_id in [(box1, "2.4", 1), (box1, "5", 2)]:
             devices = box.get_associated_devices(wlan_id)
             for i, d in enumerate(devices):
@@ -356,7 +403,8 @@ while damping <= stop_db:
                         d["NewAssociatedDeviceAuthState"],
                         d["NewX_AVM-DE_SignalStrength"],
                         d["NewX_AVM-DE_Speed"],
-                        f"{download_speed / 1024:.2f} kB/s")
+                        f"{download_speed / 1024:.2f} kB/s",
+                        f"{rms:.2f}")
                 if writecsv:
                     # in CSV schreiben
                     with open(output_csv, "a", newline="") as f:
@@ -368,7 +416,8 @@ while damping <= stop_db:
                             d["NewAssociatedDeviceAuthState"],
                             d["NewX_AVM-DE_SignalStrength"],
                             d["NewX_AVM-DE_Speed"],
-                            f"{download_speed / 1024:.2f} kB/s"])
+                            f"{download_speed / 1024:.2f} kB/s"
+                            f"{rms:.2f}"])
                     if debug:
                         currenttime= datetime.now().strftime("%d.%m.%Y %H:%M:%S")
                         print(f"{currenttime} [Testing] Daten in CSV geschrieben.")
@@ -386,11 +435,17 @@ while damping <= stop_db:
         if debug:
             currenttime= datetime.now().strftime("%d.%m.%Y %H:%M:%S")
             print(f"{currenttime} [Testing] Diff {i+1}: {diff_value}")
+    
+    if not audiocapture:
+        rms, has_sound = 1, False
+
+    print(f"#######AUDIO: {audiostreams[0]:.2f}, {audiostreams[0]:.2f}")
 
     # Prüfen ob Stream hängt / alle kleiner Schwellwert
     #if all(d < threshold for d in diffs):
     # Prüfen ob Stream hängt / einer kleiner Schwellwert
-    if any(d < threshold for d in diff_values):    
+    #if any(d < threshold for d in diff_values):
+    if all(d < threshold for d in diff_values) and not all(a > 1 for a in audiostreams):    
         if debug:        
             currenttime= datetime.now().strftime("%d.%m.%Y %H:%M:%S")
             print(f"{currenttime} [Result] Stream hängt → Daten werden gesichert.")
@@ -422,7 +477,7 @@ if debug:
 
 if writecsv:
     with open(testergebnis, "a") as f:
-        print(f"{timestamps[0]},{start_db},{stop_db},{step_db},{settle_time},{snapshot_interval},{threshold},{damping},{diff_value}", file=f)
+        print(f"{timestamps[0]},{start_db},{stop_db},{step_db},{settle_time},{snapshot_interval},{threshold},{damping},{diff_value},{rms}", file=f)
 
 if attenuator:
     cmd = ["curl", f"http://{attenuator_ip}/execute.php?SAA+{start_db}"]

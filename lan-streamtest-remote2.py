@@ -416,7 +416,7 @@ while damping <= stop_db:
                             d["NewAssociatedDeviceAuthState"],
                             d["NewX_AVM-DE_SignalStrength"],
                             d["NewX_AVM-DE_Speed"],
-                            f"{download_speed / 1024:.2f} kB/s"
+                            f"{download_speed / 1024:.2f} kB/s",
                             f"{rms:.2f}"])
                     if debug:
                         currenttime= datetime.now().strftime("%d.%m.%Y %H:%M:%S")
@@ -462,7 +462,7 @@ while damping <= stop_db:
     # --- nächste Dämpfung ---
     if fakercu and damping % 10 == 0:
         send_key("26")
-        time.sleep(3)
+        time.sleep(4)
         send_key("24")
     if attenuator:
         damping += step_db

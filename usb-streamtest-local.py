@@ -6,7 +6,7 @@ import time
 import numpy as np
 from datetime import datetime
 
-video_device = "/dev/video48"
+video_device = "/dev/video47"
 snapshot_interval = 1     # Sekunden zwischen Snapshots
 threshold = 250000        # Schwellenwert für Differenz
 

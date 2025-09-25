@@ -437,9 +437,9 @@ while damping <= stop_db:
             print(f"{currenttime} [Testing] Diff {i+1}: {diff_value}")
     
     if not audiocapture:
-        rms, has_sound = 1, False
-
-    print(f"#######AUDIO: {audiostreams[0]:.2f}, {audiostreams[0]:.2f}")
+        audiostreams.append(10.0)
+    if debug:
+        print(f"#######AUDIO: {audiostreams[0]:.2f}, {audiostreams[0]:.2f}")
 
     # Prüfen ob Stream hängt / alle kleiner Schwellwert
     #if all(d < threshold for d in diffs):

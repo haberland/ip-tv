@@ -427,11 +427,11 @@ while damping <= stop_db:
     diff_values = []
     for i in range(2):
         diff = cv2.absdiff(greyshots[i], greyshots[i+1])
-        filename = f"Snapshot {i+1} grey diff.jpg"
-        cv2.imwrite(filename, diff)
         diffs.append(diff)
         diff_value = np.sum(diff)
         diff_values.append(diff_value)
+        filename = f"Snapshot {i+1} grey diff {diff_value}.jpg"
+        cv2.imwrite(filename, diff)
         if debug:
             currenttime= datetime.now().strftime("%d.%m.%Y %H:%M:%S")
             print(f"{currenttime} [Testing] Diff {i+1}: {diff_value}")

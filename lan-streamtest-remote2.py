@@ -277,12 +277,13 @@ if writecsv:
     # CSV vorbereiten
     timestamp2 = datetime.now().strftime("%Y%m%d-%H%M%S")
     output_csv = f"{timestamp2}-Messverlauf.csv"
+
     with open(output_csv, "w", newline="") as f:
         writer = csv.writer(f)
         writer.writerow(["Timestamp", "NewAssociatedDeviceMACAddress", "NewAssociatedDeviceIPAddress", "Band", "NewAssociatedDeviceAuthState", "AVM-DE_SignalStrength", "AVM-DE_WLAN-Speed", "DownloadSpeed_kBps", "RMS"])
-    #with open(testergebnis, "w", newline="") as f:
-    #    writer = csv.writer(f)
-    #    writer.writerow(["Timestamp", "Start dB", "Stop dB", "Step dB", "settle time", "snapshot interval", "threshold", "damping","Diff"])
+    with open(testergebnis, "w", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow(["Timestamp", "Start dB", "Stop dB", "Step dB", "settle time", "snapshot interval", "threshold", "damping","Diff"])
 
 snapshots = []
 greyshots = []
@@ -315,7 +316,9 @@ if not cap.isOpened():
     print(f"{currenttime} [Error] Grabber konnte nicht geöffnet werden!")
     if writecsv:
         with open(output_csv, "a") as f:
-            print("[Error] Grabber konnte nicht geöffnet werden!", file=f)
+            print(f"{currenttime} [Error] Grabber konnte nicht geöffnet werden!", file=f)
+        with open(testergebnis, "a") as f:
+            print(f"{currenttime} [Error] Grabber konnte nicht geöffnet werden!", file=f)
     exit(1)
 
 timestamp2 = datetime.now().strftime("%Y%m%d-%H%M%S")
@@ -430,7 +433,7 @@ while damping <= stop_db:
         diffs.append(diff)
         diff_value = np.sum(diff)
         diff_values.append(diff_value)
-        filename = f"Snapshot {i+1} grey diff {diff_value}.jpg"
+        filename = f"Snapshot {i+1} grey diff.jpg"
         cv2.imwrite(filename, diff)
         if debug:
             currenttime= datetime.now().strftime("%d.%m.%Y %H:%M:%S")
@@ -468,6 +471,7 @@ while damping <= stop_db:
         damping += step_db
 
 cap.release()
+
 if debug:
     print(f"+-------------------------------+")
     print(f"| Messung beendet, Stream hängt |")

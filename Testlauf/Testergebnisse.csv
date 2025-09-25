@@ -1,3 +1,0 @@
-Timestamp,Start dB,Stop dB,Step dB,settle time,snapshot interval,threshold,damping,Diff
-25.09.2025 09:54:25,15.0,60.0,0.25,15,2,250000,15.0,137250
-25.09.2025 09:55:37,15.0,60.0,0.25,15,2,250000,15.0,11971

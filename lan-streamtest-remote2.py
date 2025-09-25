@@ -13,20 +13,18 @@ from typing import Optional, Dict, List
 
 # --- Einstellungen ---
 attenuator_ip = "192.168.1.101"
-attenuator= False
+attenuator= True
 fakercu_ip = "192.168.175.19"
-fakercu= False
+fakercu= True
 # URL des HDMI-Streams
 stream_url = "http://192.168.175.6:8080/hdmi"
 
-start_db = 15.0
+start_db = 40.0
 stop_db = 60.0
 step_db = 0.25
 
-waiting= 1.0  # Sekunden warten zwischen zwei Download-Speed Messungen
-
 settle_time = 15          # Sekunden warten nach neuer Dämpfung
-snapshot_interval = 2     # Sekunden zwischen Snapshots
+snapshot_interval = 2     # Sekunden zwischen Snapshots und gleichzeitig download Geschwindigkeit berechnung
 threshold = 250000        # Schwellenwert für Diff
 
 # Log-Bild skalieren um größes zu verkeinern
@@ -219,9 +217,11 @@ def send_key(keycode: str, host: str = "0.0.0.0", port: int = 8181):
     try:
         r = requests.post(url, headers=headers, data=data, timeout=3)
         r.raise_for_status()
-        print(f"Key {keycode} erfolgreich gesendet.")
+        currenttime= datetime.now().strftime("%d.%m.%Y %H:%M:%S")
+        print(f"{currenttime} [FakeRCU] Key {keycode} erfolgreich gesendet.")
     except requests.RequestException as e:
-        print(f"Fehler beim Senden von Key {keycode}: {e}")
+        currenttime= datetime.now().strftime("%d.%m.%Y %H:%M:%S")
+        print(f"{currenttime} [FakeRCU] Fehler beim Senden von Key {keycode}: {e}")
 
 
 
@@ -235,7 +235,8 @@ username1= box1.fetch_username()
 username2= box2.fetch_username()
 
 if debug:
-    print(f"Box1 User: {username1}, Box2 User: {username2}")
+    currenttime= datetime.now().strftime("%d.%m.%Y %H:%M:%S")
+    print(f"{currenttime} Box1 User: {username1}, Box2 User: {username2}")
 
 if writecsv:
     # CSV vorbereiten
@@ -253,25 +254,29 @@ greyshots = []
 timestamps = []
 
 if debug:
-    print("[Setup] Wecke Stream...")
+    currenttime= datetime.now().strftime("%d.%m.%Y %H:%M:%S")
+    print(f"{currenttime} [Setup] Wecke Stream...")
 # --- Dämpfung einstellen ---
 if attenuator:
     cmd = ["curl", f"http://{attenuator_ip}/execute.php?SAA+{start_db}"]
     subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     if debug:
-        print(f"[Setup] Dämpfung gesetzt: {start_db} dB")
+        currenttime= datetime.now().strftime("%d.%m.%Y %H:%M:%S")
+        print(f"{currenttime} [Setup] Dämpfung gesetzt: {start_db} dB")
     time.sleep(5)
 if fakercu:
     send_key("25")
     if debug:
-        print(f"[Setup] 5 Sekunden warten...")
+        currenttime= datetime.now().strftime("%d.%m.%Y %H:%M:%S")
+        print(f"{currenttime} [Setup] 5 Sekunden warten...")
     time.sleep(5)
     send_key("27")
 
 # Stream öffnen
 cap = cv2.VideoCapture(stream_url)
 if not cap.isOpened():
-    print("[Error] Grabber konnte nicht geöffnet werden!")
+    currenttime= datetime.now().strftime("%d.%m.%Y %H:%M:%S")
+    print(f"{currenttime} [Error] Grabber konnte nicht geöffnet werden!")
     if writecsv:
         with open(output_csv, "a") as f:
             print("[Error] Grabber konnte nicht geöffnet werden!", file=f)
@@ -280,13 +285,15 @@ if not cap.isOpened():
 timestamp2 = datetime.now().strftime("%Y%m%d-%H%M%S")
 
 if debug:
-    print("[Setup] Starte Stream-Überwachung...")
+    currenttime= datetime.now().strftime("%d.%m.%Y %H:%M:%S")
+    print(f"{currenttime} [Setup] Starte Stream-Überwachung...")
 snapshots.clear()
 for i in range(3):
     time.sleep(snapshot_interval)
     ret, frame = cap.read()
     if not ret:
-        print("[Error] Kein Frame gelesen → Stream tot.")
+        currenttime= datetime.now().strftime("%d.%m.%Y %H:%M:%S")
+        print(f"{currenttime} [Error] Kein Frame gelesen → Stream tot.")
         if writecsv:
             with open(output_csv, "a") as f:
                 print("[Error] Kein Frame gelesen → Stream tot.", file=f)
@@ -305,7 +312,8 @@ while damping <= stop_db:
         cmd = ["curl", f"http://{attenuator_ip}/execute.php?SAA+{damping:.2f}"]
         subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         if debug:
-            print(f"[Testing] Dämpfung gesetzt: {damping:.2f} dB")
+            currenttime= datetime.now().strftime("%d.%m.%Y %H:%M:%S")
+            print(f"{currenttime} [Testing] Dämpfung gesetzt: {damping:.2f} dB")
         # --- Wartezeit nach Dämpfungsänderung ---
         time.sleep(settle_time)
 
@@ -318,13 +326,13 @@ while damping <= stop_db:
         timestamp = datetime.now().strftime("%d.%m.%Y %H:%M:%S")
         ret, frame = cap.read()
         if not ret:
-            print("[Error] Kein Frame gelesen → Stream tot.")
+            print(f"{timestamp} [Error] Kein Frame gelesen → Stream tot.")
             if writecsv:
                 with open(output_csv, "a") as f:
                     print("[Error] Kein Frame gelesen → Stream tot.", file=f)
             cap.release()
             exit(1)
-        
+        download_speed = get_download_speed(box2, interval=snapshot_interval)
         snapshots.append(frame)
         timestamps.append(timestamp)
         filename = f"Snapshot {i}.jpg"
@@ -334,11 +342,11 @@ while damping <= stop_db:
         greyshots.append(greyshot)
         cv2.imwrite(filename, greyshots[i])
         if debug:
-            print(f"[Testing] Snapshot {i+1} aufgenommen")
+            currenttime= datetime.now().strftime("%d.%m.%Y %H:%M:%S")
+            print(f"{currenttime} {timestamp} [Testing] Snapshot {i+1} aufgenommen")
 
         for box, band, wlan_id in [(box1, "2.4", 1), (box1, "5", 2)]:
             devices = box.get_associated_devices(wlan_id)
-            download_speed = get_download_speed(box2, interval=waiting)
             for i, d in enumerate(devices):
                 if debug:
                     print(f"{timestamp}",
@@ -362,7 +370,8 @@ while damping <= stop_db:
                             d["NewX_AVM-DE_Speed"],
                             f"{download_speed / 1024:.2f} kB/s"])
                     if debug:
-                        print("Daten in CSV geschrieben.")
+                        currenttime= datetime.now().strftime("%d.%m.%Y %H:%M:%S")
+                        print(f"{currenttime} [Testing] Daten in CSV geschrieben.")
 
     # Differenzen berechnen
     diffs = []
@@ -375,14 +384,16 @@ while damping <= stop_db:
         diff_value = np.sum(diff)
         diff_values.append(diff_value)
         if debug:
-            print(f"[Testing] Diff {i+1}: {diff_value}")
+            currenttime= datetime.now().strftime("%d.%m.%Y %H:%M:%S")
+            print(f"{currenttime} [Testing] Diff {i+1}: {diff_value}")
 
     # Prüfen ob Stream hängt / alle kleiner Schwellwert
     #if all(d < threshold for d in diffs):
     # Prüfen ob Stream hängt / einer kleiner Schwellwert
     if any(d < threshold for d in diff_values):    
         if debug:        
-            print("[Result] Stream hängt → Daten werden gesichert.")
+            currenttime= datetime.now().strftime("%d.%m.%Y %H:%M:%S")
+            print(f"{currenttime} [Result] Stream hängt → Daten werden gesichert.")
         for i in range(3):
             filename = f"{timestamp2}_{damping}_Snapshot_{i}.jpg"
             smaller = cv2.resize(snapshots[i], None, fx=scale, fy=scale, interpolation=cv2.INTER_AREA)
@@ -417,7 +428,8 @@ if attenuator:
     cmd = ["curl", f"http://{attenuator_ip}/execute.php?SAA+{start_db}"]
     subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     if debug:
-        print(f"Dämpfung gesetzt: {start_db} dB")
+        currenttime= datetime.now().strftime("%d.%m.%Y %H:%M:%S")
+        print(f"{currenttime} Dämpfung gesetzt: {start_db} dB")
     time.sleep(5)
 
 if fakercu:    
@@ -426,5 +438,6 @@ if fakercu:
     send_key("27")
 
 if debug:
-    print("[Goodbye] Messung beendet → Programm beendet.")
+    currenttime= datetime.now().strftime("%d.%m.%Y %H:%M:%S")
+    print(f"{currenttime} [Goodbye] Messung beendet → Programm beendet.")
 exit(0)
